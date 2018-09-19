@@ -165,7 +165,7 @@ def random_distort_image(image, hue=18, saturation=1.5, exposure=1.5):
 
 
 def get_data(chunk):
-    img = cv2.imread(Gb_img_path + chunk[0])
+    img = cv2.imread(chunk[0])  # Gb_img_path +
     img = resize_img(img)
     boxes = resize_boxes(chunk[1], 300, 416)
 
@@ -175,30 +175,50 @@ def get_data(chunk):
     img = random_flip(img, flip)
     boxes = flip_boxes(boxes, flip)
 
-    visualization2(img, boxes)
+    # visualization2(img, boxes)
     return img, boxes
+
+
+def rbox_iou(box_x, box_y, box_w, box_h, box_angle, anchor_x, anchor_y, anchor_w, anchor_h, anchor_angle):
+    rect1 = ((box_x - box_w / 2, box_y - box_h / 2), (box_x + box_w / 2, box_y + box_h / 2), box_angle)
+    rect1_ares = box_w * box_h
+    rect2 = ((anchor_x - anchor_w / 2, anchor_y - anchor_h / 2), (anchor_x + anchor_w / 2, anchor_y + anchor_h / 2),
+             anchor_angle)
+    rect2_ares = anchor_w * anchor_h
+    intersect = cv2.rotatedRectangleIntersection(rect1, rect2)
+    union = rect1_ares + rect2_ares - intersect
+    return float(intersect) / union
 
 
 def get_y_true(boxes):
     y_true = list()
     # initialize the inputs and the outputs
     base_grid_w, base_grid_h = 13, 13
+    cell_size = [8, 16, 32]
     y_true.append(np.zeros((Gb_batch_size, 4 * base_grid_h, 4 * base_grid_w, 3, 6, 6)))  # desired network output 3
     y_true.append(np.zeros((Gb_batch_size, 2 * base_grid_h, 2 * base_grid_w, 3, 6, 6)))  # desired network output 2
     y_true.append(np.zeros((Gb_batch_size, 1 * base_grid_h, 1 * base_grid_w, 3, 6, 6)))  # desired network output 1
 
-    for box in boxes:
-        for i in range(len(Gb_anchors) // 2):
-            anchor = [Gb_anchors[i], Gb_anchors[i + 1]]
-            for j in range(6):
-                iou = rbox_iou()
+    for instance_index in range(Gb_batch_size):
+        for box in boxes:
+            for i in range(len(Gb_anchors) // 2):
+                x = box[0] // cell_size[i // 3] + 1
+                y = box[1] // cell_size[i // 3] + 1
+                box_w = box[2]
+                box_h = box[3]
+                box_angle = box[5]
+                anchor_w = Gb_anchors[i * 2]
+                anchor_h = Gb_anchors[i * 2 + 1]
+                for j in range(6):
+                    anchor_angle = 30 * j
+                    iou = rbox_iou(x, y, box_w, box_h, box_angle, x, y, anchor_w, anchor_h, anchor_angle)  #
 
 
 if __name__ == '__main__':
     # visualization('QUANZHOU_Level_19.tif_res_0.71_27_rotate270.tif')
     # chunks = read_txt()
-    chunks = [['ZHUJIANG2_Level_19.tif_res_0.71_207_flipud.tif',
-               [['110.644815', '179.701814', '80.667319', '14.789432', '1', '82.000000']]]]
+    chunks = [['QUANZHOU_Level_19.tif_res_0.71_27_rotate270.tif',
+               [['148.820997', '162.968333', '63.035310', '13.029849', '1', '35.000000']]]]
     img, boxes = get_data(chunks[0])
     get_y_true(boxes)
     exit()
